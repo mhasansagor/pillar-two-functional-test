@@ -23,7 +23,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token }) {
       if (!token.role) {
         token.role =
-          token.email && token.email.toLowerCase() === "admin@example.com"
+          token.email && token.email.toLowerCase() === "m.hasan142121@gmail.com"
             ? "admin"
             : "manager";
       }

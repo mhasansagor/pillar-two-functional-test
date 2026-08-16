@@ -4,7 +4,11 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 
-export default function LoginForm(): JSX.Element {
+export default function LoginForm({
+  isAuthConfigured,
+}: {
+  isAuthConfigured: boolean;
+}): JSX.Element {
   const params = useSearchParams();
   const rawCallbackUrl = params.get("callbackUrl");
   const callbackUrl =
@@ -16,6 +20,11 @@ export default function LoginForm(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const handleGoogleSignIn = async (): Promise<void> => {
+    if (!isAuthConfigured) {
+      setError("Google OAuth is not configured yet. Add the required values to .env.local, then restart the dev server.");
+      return;
+    }
+
     setError(null);
     setIsSubmitting(true);
 
@@ -49,7 +58,7 @@ export default function LoginForm(): JSX.Element {
           }}
           aria-label="Sign in with Google"
           aria-busy={isSubmitting}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !isAuthConfigured}
           className="mt-6 flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
         >
           <svg
@@ -86,6 +95,17 @@ export default function LoginForm(): JSX.Element {
           >
             {error ??
               "Google sign-in could not be completed. Please try again."}
+          </p>
+        )}
+
+        {!isAuthConfigured && !error && (
+          <p
+            aria-live="polite"
+            className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+          >
+            Google OAuth is not configured yet. Create .env.local from
+            .env.example, fill in Google credentials, and restart the dev
+            server.
           </p>
         )}
       </div>
