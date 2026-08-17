@@ -1,43 +1,33 @@
 import { NextResponse } from "next/server";
-import type { Product } from "@/types/product";
-
-const products: Product[] = [
-  {
-    id: 1,
-    name: "MacBook Pro M2",
-    category: "Laptops",
-    price: 2499,
-    stock: 8,
-    image: "/assets/images/macbook-pro-m2.jpg",
-  },
-  {
-    id: 2,
-    name: "Logitech MX Master 3",
-    category: "Accessories",
-    price: 99,
-    stock: 0,
-    image: "/assets/images/logitech-mx-master.jpg",
-  },
-  {
-    id: 3,
-    name: "Dell XPS 15",
-    category: "Laptops",
-    price: 1899,
-    stock: 3,
-    image: "/assets/images/dell-xps-15.jpg",
-  },
-];
+import { isProductCategory, productCategories, products } from "@/lib/productCatalog";
+import type { Product, ProductCategory } from "@/types/product";
 
 export interface ProductsResponse {
   products: Product[];
   total: number;
+  categories: ProductCategory[];
+  page: number;
+  perPage: number;
+  totalPages: number;
   error?: string;
+}
+
+function getPositiveParam(value: string | null, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 export async function GET(request: Request): Promise<NextResponse<ProductsResponse>> {
   try {
     const url = new URL(request.url);
     const state = url.searchParams.get("state");
+    const category = url.searchParams.get("category");
+    const search = url.searchParams.get("search")?.trim().toLowerCase() ?? "";
+    const page = getPositiveParam(url.searchParams.get("page"), 1);
+    const perPage = Math.min(
+      getPositiveParam(url.searchParams.get("perPage"), 20),
+      20
+    );
 
     if (state === "error") {
       throw new Error("Forced product API failure");
@@ -46,13 +36,41 @@ export async function GET(request: Request): Promise<NextResponse<ProductsRespon
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     if (state === "empty") {
-      return NextResponse.json({ products: [], total: 0 }, { status: 200 });
+      return NextResponse.json(
+        {
+          products: [],
+          total: 0,
+          categories: productCategories,
+          page: 1,
+          perPage,
+          totalPages: 1,
+        },
+        { status: 200 }
+      );
     }
+
+    const categoryProducts = isProductCategory(category)
+      ? products.filter((product) => product.category === category)
+      : products;
+
+    const filteredProducts = search
+      ? categoryProducts.filter((product) =>
+          product.name.toLowerCase().includes(search)
+        )
+      : categoryProducts;
+    const totalPages = Math.max(1, Math.ceil(filteredProducts.length / perPage));
+    const safePage = Math.min(page, totalPages);
+    const pageStart = (safePage - 1) * perPage;
+    const paginatedProducts = filteredProducts.slice(pageStart, pageStart + perPage);
 
     return NextResponse.json(
       {
-        products,
-        total: products.length,
+        products: paginatedProducts,
+        total: filteredProducts.length,
+        categories: productCategories,
+        page: safePage,
+        perPage,
+        totalPages,
       },
       { status: 200 }
     );
@@ -61,6 +79,10 @@ export async function GET(request: Request): Promise<NextResponse<ProductsRespon
       {
         products: [],
         total: 0,
+        categories: productCategories,
+        page: 1,
+        perPage: 20,
+        totalPages: 1,
         error: "The product catalog is temporarily unavailable. Please try again.",
       },
       { status: 500 }

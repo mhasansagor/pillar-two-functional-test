@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCartStorageKey } from "@/lib/cartStorage";
 import { useCartStore } from "@/store/cartStore";
 import type { Product } from "@/types/product";
 
@@ -69,13 +70,14 @@ describe("cart store", () => {
   });
 
   it("persists and rehydrates cart items", async () => {
+    const storageKey = getCartStorageKey();
     useCartStore.getState().addItem(product);
 
-    expect(localStorage.getItem("pillar-2-cart")).toContain("MacBook Pro M2");
+    expect(localStorage.getItem(storageKey)).toContain("MacBook Pro M2");
 
     useCartStore.setState({ items: [], hasHydrated: false });
     localStorage.setItem(
-      "pillar-2-cart",
+      storageKey,
       JSON.stringify({
         state: { items: [{ ...product, quantity: 1 }] },
         version: 0,

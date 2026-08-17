@@ -33,9 +33,22 @@ export default function Navbar(): JSX.Element {
           <Link
             href="/dashboard/cart"
             aria-label={`${visibleCount} items in cart`}
-            className="relative flex h-9 min-w-16 items-center justify-center rounded-lg bg-surface px-3 text-sm font-semibold text-ink transition hover:bg-border"
+            className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-surface text-ink transition hover:bg-border"
           >
-            Cart
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+            >
+              <circle cx="8" cy="21" r="1" />
+              <circle cx="19" cy="21" r="1" />
+              <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
+            </svg>
             {visibleCount > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-xs font-semibold text-white">
                 {visibleCount}
