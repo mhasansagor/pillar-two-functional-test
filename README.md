@@ -232,7 +232,7 @@ Latest local validation:
 
 - `npm.cmd run lint`: passed
 - `npm.cmd run typecheck`: passed
-- `npm.cmd run test`: passed, 10 files / 32 tests
+- `npm.cmd run test`: passed, 4 files / 11 tests
 - `npm.cmd run build`: passed
 
 The production build currently reports non-fatal Auth.js/Jose Edge Runtime

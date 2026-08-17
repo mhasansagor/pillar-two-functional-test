@@ -25,8 +25,8 @@ export async function GET(request: Request): Promise<NextResponse<ProductsRespon
     const search = url.searchParams.get("search")?.trim().toLowerCase() ?? "";
     const page = getPositiveParam(url.searchParams.get("page"), 1);
     const perPage = Math.min(
-      getPositiveParam(url.searchParams.get("perPage"), 20),
-      20
+      getPositiveParam(url.searchParams.get("perPage"), 18),
+      18
     );
 
     if (state === "error") {
@@ -81,7 +81,7 @@ export async function GET(request: Request): Promise<NextResponse<ProductsRespon
         total: 0,
         categories: productCategories,
         page: 1,
-        perPage: 20,
+        perPage: 18,
         totalPages: 1,
         error: "The product catalog is temporarily unavailable. Please try again.",
       },
