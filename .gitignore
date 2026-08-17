@@ -5,4 +5,5 @@ out
 .env.local
 .DS_Store
 *.log
+__tests__
 tsconfig.tsbuildinfo
