@@ -1,7 +1,15 @@
+export type ProductCategory =
+  | "Laptops"
+  | "Accessories"
+  | "Mobile"
+  | "Tab"
+  | "Gadget"
+  | "Home Appliance";
+
 export interface Product {
   id: number;
   name: string;
-  category: string;
+  category: ProductCategory;
   price: number;
   stock: number;
   image: string;
@@ -64,8 +72,9 @@ export function getStockStatus(stock: number): StockStatus {
 }
 
 export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-BD", {
     style: "currency",
-    currency: "USD",
+    currency: "BDT",
+    maximumFractionDigits: 0,
   }).format(value);
 }

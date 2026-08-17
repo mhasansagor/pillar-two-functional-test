@@ -15,6 +15,7 @@ vi.mock("next/image", () => ({
 }));
 
 vi.mock("sonner", () => ({
+  Toaster: () => React.createElement("div", { "data-testid": "toaster" }),
   toast: {
     success: vi.fn(),
     error: vi.fn(),

@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import ProductGrid from "@/components/ProductGrid";
 import { auth } from "@/lib/auth";
 
@@ -18,22 +19,22 @@ export default async function DashboardPage(): Promise<JSX.Element> {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Products</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Browse the catalog and add items to your cart.
+            Browse inventory and add items to your cart.
           </p>
         </div>
 
         {role === "admin" && (
-          <button
-            type="button"
+          <Link
+            href="/dashboard/admin/inventory"
             className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
           >
-            Manage Inventory
-          </button>
+            Admin Inventory
+          </Link>
         )}
       </div>
 
       <div className="mt-6">
-        <ProductGrid />
+        <ProductGrid isAdmin={role === "admin"} />
       </div>
 
       <CheckoutBar />

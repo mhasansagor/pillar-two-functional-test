@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { getCartStorageKey } from "@/lib/cartStorage";
 import type { Product } from "@/types/product";
 
 export interface CartItem extends Product {
@@ -125,7 +126,7 @@ export const useCartStore = create<CartState>()(
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
     }),
     {
-      name: "pillar-2-cart",
+      name: getCartStorageKey(),
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       partialize: (state) => ({ items: state.items }),
