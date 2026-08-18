@@ -1,301 +1,176 @@
-# Pillar 2 - Functional Engineering Test
+# Pillar 2 — Functional Engineering Test
 
-Secure product dashboard built with Next.js 14 App Router, strict TypeScript,
-Tailwind CSS, Auth.js/NextAuth.js v5 Google OAuth, Zustand cart state,
-Sonner notifications, and internal Route Handlers for mock commerce APIs.
+This is my submission for the Logic pillar of the React Frontend Engineer assessment — a product dashboard with Google login, cart management, and checkout logic, built on Next.js 14.
 
-## Technology Stack
+I went a bit past the base requirements where it made sense (search, filtering, pagination, an admin view), and I've tried to document why below rather than just listing what exists.
 
-- Next.js 14 App Router and React 18
-- Strict TypeScript with `.ts` and `.tsx` source files only
-- Tailwind CSS
-- Auth.js / NextAuth.js v5 with Google OAuth and JWT sessions
-- Zustand with persisted, per-user cart storage
-- Sonner for toast notifications
-- Vitest, Testing Library, and jsdom
+## Live Links
 
-## Local Setup
+GitHub: `https://replace-with-your-public-github-repository-url`
+Demo: `https://replace-with-your-vercel-demo-url`
 
-Install dependencies:
+## Stack
+
+Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Auth.js v5 with Google OAuth, Zustand (with persist middleware), Sonner for toasts, and Vitest/Testing Library for tests.
+
+## How the requirements were met
+
+### Auth & Security
+
+Login is handled with Auth.js's Google provider (`lib/auth.ts`, `app/api/auth/[...nextauth]/route.ts`). The `/login` page has a working "Sign in with Google" button that redirects back to wherever the user was trying to go once they're authenticated.
+
+Route protection happens at the edge, in `middleware.ts` and `lib/routeProtection.ts` — not just a client-side check, since that was explicitly called out as the senior-level expectation. Anyone hitting `/dashboard` or a sub-route without a session gets bounced to `/login?callbackUrl=...`. The dashboard layout also re-checks the session server-side as a second layer.
+
+Sessions are JWT-based, so a refresh doesn't log you out. The navbar (`components/Navbar.tsx`) shows the user's avatar (or an initial if there's no photo), their name, the cart count, and a logout button wired to `signOut()`.
+
+### Inventory & Cart
+
+Products come from `/api/products` and are rendered through `ProductGrid.tsx`, which handles the loading/success/empty/error states.
+
+Stock logic is centralized in one function, `getStockStatus()` in `types/product.ts`, and consumed by `ProductCard.tsx`:
+
+- `stock = 0` → red indicator, "Out of Stock" label, button disabled (with `aria-disabled` for screen readers)
+- `0 < stock < 5` → amber indicator, "Low Stock" badge, remaining-count text, button still works
+- `stock >= 5` → normal green indicator, nothing extra shown
+
+Cart state lives in a Zustand store (`store/cartStore.ts`) so it's reachable from the navbar, product cards, the checkout bar, and the cart page without prop drilling. Adding an item updates the cart count immediately — the store mutation is synchronous, so there's no waiting on a network call before the UI reflects it.
+
+Checkout (`app/dashboard/cart/page.tsx` → `/api/checkout`) checks for a session first and redirects to login if there isn't one, shows a loading state on the button, simulates a 1.5s request, and either clears the cart with a success toast or leaves it intact with a retryable error toast.
+
+### Polish
+
+Skeletons instead of spinners while products load (`SkeletonLoader.tsx`), a proper error state with a retry button that re-fires the fetch (`ErrorState.tsx`), and a real empty state for both an empty catalog and an empty cart (`EmptyState.tsx`). Toasts are handled globally through Sonner, mounted once in `Providers.tsx`.
+
+### Mock API & Data
+
+`/api/products` is the internal mock endpoint, and it does more than just return a static array — it supports search, category filtering, pagination, and two test-only states (`state=empty`, `state=error`) so the empty/error UI can be demoed without needing to fake a network failure. The original 3-product sample from the brief got expanded into a 50-product catalog (`lib/productCatalog.ts`) using real product images, mostly so the search/filter/pagination work had something realistic to operate on.
+
+## Bonus challenges
+
+I ended up doing all four, not just the two asked for:
+
+1. **Edge middleware** — covered above, `middleware.ts`.
+2. **RBAC** — the session carries a `role` of `admin` or `manager` (`lib/auth.ts`, `types/next-auth.d.ts`). Admin-only UI is hidden from managers, and `/dashboard/admin/inventory` calls `notFound()` server-side if a manager tries to hit it directly.
+3. **Code splitting** — `CheckoutBar` is loaded via `next/dynamic` on the dashboard page, since it's not needed for the initial render.
+4. **Cart persistence** — Zustand's `persist` middleware keeps the cart in `localStorage`, scoped per user email so two people signed in on the same browser don't see each other's cart.
+
+I didn't include a Lighthouse screenshot for the code-splitting bonus — the split is there in the code, but I don't have a before/after capture to show for it.
+
+## Beyond the brief
+
+A few things I added that weren't asked for, because they felt like natural extensions of what was already there:
+
+- **Search** — by product name, both client-side in `ProductGrid.tsx` and server-side via `/api/products?search=...`.
+- **Category filtering** — same pattern, `?category=...`.
+- **Pagination** — numbered pages with prev/next, once the catalog grew to 50 products a single scrolling grid stopped making sense.
+- **Admin inventory dashboard** at `/dashboard/admin/inventory` — a natural place to actually use the RBAC role instead of just having it sit unused in the session.
+- **Inventory metrics** on the main dashboard for admin users.
+- **A dedicated cart page** (`/dashboard/cart`) instead of a dropdown/drawer, mostly so checkout state had somewhere proper to live.
+- **Per-user cart persistence** — the localStorage key is scoped by email so switching accounts doesn't leak one person's cart into another's.
+- A handful of **tests** covering the product API, route protection, cart behavior, and the stock-status helper.
+
+## On IAM / RBAC specifically
+
+Since this came up as a bonus item, worth being direct about how it actually works: this is a demo role model, not a real permissions system. Auth.js handles identity through Google OAuth and JWT sessions; the JWT callback in `lib/auth.ts` attaches a `role` field, and the session callback exposes it on `session.user.role`. Middleware protects the routes; `/dashboard/admin/inventory` does an additional server-side check and returns `notFound()` for anyone without the admin role.
+
+The actual rule right now is hardcoded: `m.hasan142121@gmail.com` gets `admin`, everyone else gets `manager`. That's obviously not how you'd do this in production — a real version would pull roles from a database or an identity provider rather than a string comparison — but for the scope of this test it demonstrates the mechanism without needing a database.
+
+## Product API reference
+
+```
+GET /api/products
+```
+
+Query params: `page`, `perPage`, `category`, `search`, `state=empty`, `state=error`
+
+Response:
+
+```ts
+{
+  products: Product[];
+  total: number;
+  categories: ProductCategory[];
+  page: number;
+  perPage: number;
+  totalPages: number;
+  error?: string;
+}
+```
+
+## Checkout flow
+
+1. User clicks Checkout.
+2. Client checks for a session; no session → redirect to `/login?callbackUrl=/dashboard/cart`.
+3. Button enters a loading state.
+4. `/api/checkout` re-verifies the session server-side.
+5. 1.5s simulated delay.
+6. Success → toast + cart cleared. Failure → toast with a Retry option, cart untouched.
+
+## Running it locally
 
 ```bash
 npm install
-```
-
-Create `.env.local` from `.env.example`:
-
-```bash
 cp .env.example .env.local
 ```
 
-Generate a secure secret:
+Generate a secret:
 
 ```bash
 openssl rand -base64 32
 ```
 
-Required variables:
+Fill in `.env.local`:
 
 ```env
 NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=replace_with_a_secure_random_secret
-AUTH_SECRET=replace_with_the_same_secure_random_secret_for_authjs_v5
-GOOGLE_CLIENT_ID=replace_with_google_client_id
-GOOGLE_CLIENT_SECRET=replace_with_google_client_secret
+NEXTAUTH_SECRET=your_generated_secret
+AUTH_SECRET=same_secret_again_for_authjs_v5
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
-`lib/auth.ts` reads `AUTH_SECRET` first and falls back to `NEXTAUTH_SECRET`,
-so the assessment variable and Auth.js v5 naming both work.
-
-Run locally:
+Then:
 
 ```bash
 npm run dev
 ```
 
-Production build:
+or `npm run build` for a production build.
 
-```bash
-npm run build
-```
+### Google OAuth
 
-## Google OAuth
+Local callback: `http://localhost:3000/api/auth/callback/google`
+Production callback: `https://your-vercel-domain.vercel.app/api/auth/callback/google`
 
-Create a Google OAuth web client in Google Cloud Console.
+Only `.env.example` (placeholders) is committed — real secrets stay out of the repo and get set directly in Vercel's environment variable settings.
 
-Local callback URL:
+## A few tech decisions, explained
 
-```text
-http://localhost:3000/api/auth/callback/google
-```
+**Zustand over Redux** — the cart doesn't need much: add, remove, update quantity, totals, checkout status, persistence. Zustand covers that with a fraction of the boilerplate Redux would need, and the built-in `persist` middleware meant I didn't have to hand-roll localStorage syncing.
 
-Vercel callback URL:
+**JWT sessions over database sessions** — satisfies the "survives a refresh" requirement without standing up a database for what's ultimately a take-home test, and it made attaching the role for RBAC straightforward through the JWT callback.
 
-```text
-https://your-vercel-domain.vercel.app/api/auth/callback/google
-```
+**Route Handlers instead of a separate mock server** — the brief asks for an internal mock API, and Next.js Route Handlers let that live inside the app while still giving the frontend a real fetch boundary to handle loading/error/empty states against — closer to how it'd actually work against a real backend.
 
-Do not commit `.env`, `.env.local`, or real OAuth secrets. They are ignored by
-`.gitignore`.
+## Design notes
+
+I leaned dashboard-functional over polished marketing-page styling, since that's what the brief was testing. Product cards lead with image, name, price, and stock state. Search stays visible at all times; category filtering sits behind a filter toggle so the header doesn't get crowded. The admin inventory view uses tables and metric cards since that's a scanning-heavy screen, not a browsing one.
+
+I didn't have Figma specs for this particular checkout, so the visual direction follows the written requirements and stays consistent with the rest of the dashboard rather than matching a design file pixel-for-pixel.
+
+## Known limitations
+
+- RBAC role assignment is a hardcoded email check, not a real permissions system — noted above, would need a database or IdP in production.
+- No Lighthouse screenshot for the code-splitting bonus.
+- Mock checkout always succeeds unless explicitly forced to fail for testing — there's no real payment processing.
 
 ## Routes
 
-- `/` redirects to `/dashboard` or `/login` based on session.
-- `/login` is public and redirects authenticated users through middleware.
-- `/dashboard` is protected and renders the paginated product dashboard.
-- `/dashboard/cart` is protected and renders cart review and checkout.
-- `/dashboard/admin/inventory` is admin-only and renders inventory reporting.
-- `/api/auth/[...nextauth]` handles Auth.js routes.
-- `/api/products` returns typed mock products with filters and pagination.
-- `/api/checkout` verifies session and simulates checkout processing.
-
-Unknown routes under `/dashboard` show `app/dashboard/not-found.tsx`.
-
-## Authentication And RBAC
-
-Authentication is configured in `lib/auth.ts` using Google OAuth and JWT
-sessions. `middleware.ts` wraps Auth.js middleware and delegates redirect
-decisions to `lib/routeProtection.ts`, preserving the requested dashboard URL
-in `callbackUrl`. `app/dashboard/layout.tsx` also checks the session on the
-server as a second layer.
-
-Demo role assignment:
-
-- `exampleadmin@email.com` receives `admin`.
-- Every other authenticated user receives `manager`.
-
-This is a safe assessment/demo placeholder. Replace it with a database or
-identity-provider role lookup before real production use.
-
-## Product Catalog
-
-The product source of truth is `lib/productCatalog.ts`. It contains 50 typed
-products across six categories:
-
-- Laptops
-- Accessories
-- Mobile
-- Tab
-- Gadget
-- Home Appliance
-
-Product images are loaded from `adminapi.applegadgetsbd.com`, configured in
-`next.config.mjs` through `images.remotePatterns`.
-
-## Product API
-
-`app/api/products/route.ts` returns:
-
-- `products: Product[]`
-- `total: number`
-- `categories: ProductCategory[]`
-- `page: number`
-- `perPage: number`
-- `totalPages: number`
-- optional user-safe `error`
-
-Supported query parameters:
-
-- `page`: positive page number
-- `perPage`: positive page size, capped at 20
-- `category`: one of the known product categories
-- `search`: product-name search
-- `state=empty`: deterministic empty response for tests
-- `state=error`: deterministic error response for tests
-
-The dashboard requests 20 products per page. With 50 products, page 1 shows 20,
-page 2 shows 20, and page 3 shows the remaining 10.
-
-## Dashboard Features
-
-- Search by product name
-- Category filtering behind an accessible filter button
-- Numbered pagination with chevrons and ellipsis
-- Skeleton loading state
-- Friendly empty state
-- Retryable error state
-- Stock badges for low-stock and out-of-stock products
-- Buy button that adds the product and redirects to the cart
-- Icon-only add-to-cart button with accessible labels
-
-## Inventory Rules
-
-Implemented through `getStockStatus` in `types/product.ts`.
-
-- `stock === 0`: shows "Out of Stock", disables add/buy, sets `aria-disabled`.
-- `0 < stock < 5`: shows "Low Stock", remaining count, add/buy enabled.
-- `stock >= 5`: normal state, add/buy enabled, no low-stock badge.
-
-Cart quantity can never exceed stock, cannot go negative, and removes the item
-when decreased below one.
-
-## Cart And Checkout
-
-The cart is managed in `store/cartStore.ts`. Zustand was selected instead of
-Redux or Context API because the shared state is focused, action-heavy cart
-state. Zustand gives small selectors, simple actions, and persistence without
-Redux boilerplate or Context-wide rerenders.
-
-Cart persistence is isolated by authenticated identity:
-
-- Authenticated users store cart data under
-  `pillar-2-cart:<encoded-normalized-email>`.
-- Guests store cart data under `pillar-2-cart:guest`.
-- `components/Providers.tsx` waits for Auth.js session resolution, changes the
-  persisted storage key, and then rehydrates the cart.
-
-Checkout verifies the current server session through `POST /api/checkout`.
-Authenticated checkout enters a loading state, blocks repeated clicks, waits
-about 1500ms in the route handler, clears the cart on success, and preserves
-the cart on failure. Failure is deterministic for tests through the
-`x-force-fail: true` request header.
-
-## Admin Inventory Dashboard
-
-Admins can open `/dashboard/admin/inventory` from the dashboard. The page shows:
-
-- Total product count
-- Total stock count
-- Low-stock count
-- Stockout count
-- Product count, stock, and stockout totals by category
-- Stockout product list
-- Full product stock ledger with category, price, quantity, and status
-
-Non-admin users receive the dashboard not-found page for this route.
-
-## Completed Bonus Features
-
-- Edge middleware route protection for `/dashboard` and `/dashboard/:path*`
-- Server-side route protection in `app/dashboard/layout.tsx`
-- Hydration-safe, per-user Zustand cart persistence
-- RBAC demo roles on Auth.js JWT/session
-- Admin inventory dashboard
-- API-level filtering, search, and pagination
-- Dynamic import/code splitting for the noncritical checkout bar
-- Typed catalog and stock-status helpers
-- Focused test coverage for API, UI states, cart behavior, persistence, and
-  route protection
-
-## Validation
-
-Run before submission:
-
-```bash
-npm run lint
-npm run typecheck
-npm run test
-npm run build
-```
-
-Latest local validation:
-
-- `npm.cmd run lint`: passed
-- `npm.cmd run typecheck`: passed
-- `npm.cmd run test`: passed, 4 files / 11 tests
-- `npm.cmd run build`: passed
-
-The production build currently reports non-fatal Auth.js/Jose Edge Runtime
-warnings for `CompressionStream` and `DecompressionStream`. The build still
-completes successfully.
-
-## Deployment
-
-Deploy to Vercel with the same environment variables as local development,
-using the deployed domain for `NEXTAUTH_URL` and Google OAuth callback URL.
-The internal route handlers and middleware are Vercel-compatible.
-
-Live demo URL:
-
-```text
-https://replace-with-your-live-demo.vercel.app
-```
-
-## Repository Structure
-
-```text
-app/
-  api/
-    auth/[...nextauth]/route.ts
-    checkout/route.ts
-    products/route.ts
-  dashboard/
-    admin/inventory/page.tsx
-    cart/page.tsx
-    layout.tsx
-    not-found.tsx
-    page.tsx
-  login/page.tsx
-components/
-  CheckoutBar.tsx
-  EmptyState.tsx
-  ErrorState.tsx
-  LoginForm.tsx
-  Navbar.tsx
-  ProductCard.tsx
-  ProductGrid.tsx
-  Providers.tsx
-  SkeletonLoader.tsx
-lib/
-  auth.ts
-  cartStorage.ts
-  productCatalog.ts
-  routeProtection.ts
-store/
-  cartStore.ts
-types/
-  next-auth.d.ts
-  product.ts
-__tests__/
-middleware.ts
-```
-
-## Known Limitations
-
-- Google sign-in requires real Google OAuth client credentials.
-- The RBAC role assignment is a safe demo placeholder, not a real role source.
-- Product and checkout APIs are mock route handlers, not a real commerce
-  backend.
-- The live demo URL must be replaced after deployment.
-- Existing Auth.js/Jose Edge Runtime warnings appear during build but do not
-  block production compilation.
+- `/` — redirects to `/dashboard` or `/login` based on session state
+- `/login` — public login page
+- `/dashboard` — protected product dashboard
+- `/dashboard/cart` — protected cart and checkout
+- `/dashboard/admin/inventory` — admin-only
+- `/api/auth/[...nextauth]` — Auth.js handler
+- `/api/products` — mock product API
+- `/api/checkout` — mock checkout with session verification
